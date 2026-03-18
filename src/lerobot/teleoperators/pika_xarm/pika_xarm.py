@@ -148,7 +148,6 @@ class PikaxArm(Teleoperator, Thread):
         Thread.__init__(self) # Do NOT REMOVE!
         self.stop_event = Event()
         self.config = config
-        self.frequency = config.frequency
         self._is_connected = False
         self._is_calibrated = True
         self._data_lock = Lock()
@@ -158,35 +157,10 @@ class PikaxArm(Teleoperator, Thread):
         self.pika_device = PikaDevice(1, pika_sense_port=self.config.port)
         self.pika_sense = self.pika_device.pika_sense
 
-        # from pika.sense import Sense as PikaSense
-        # self.pika_sense = PikaSense(port=self.config.port)
-        # if not self.pika_sense.connect():
-        #     raise ConnectionError(f"{self} oika sense connect failure")
-        # tracker = self.pika_sense.get_vive_tracker()
-        # if not tracker:
-        #     print('Vive Tracker初始化失败')
-        #     self.pika_sense.disconnect()
-        #     exit(1)
-        # print('Vive Tracker初始化成功')
-        # time.sleep(2)
-
-        # devices = self.pika_sense.get_tracker_devices()
-        # if not devices:
-        #     print('未检测到Vive Tracker设备')
-        #     self.pika_sense.disconnect()
-        #     exit(1)
-        # print('检测到Vive Tracker设备: {}'.format(devices))
-
-        # self.target_device = None
-        # for device in devices:
-        #     if device.startswith('WM'):
-        #         self.target_device = device
-        #         break
-        # else:
-        #     self.target_device = devices[0]
-        # print('开始跟踪设备: {}\n'.format(self.target_device))
-
-        self.arm = XArmAPI(self.config.robot_ip, is_radian=True)
+        if self.config.robot_ip:
+            self.arm = XArmAPI(self.config.robot_ip, is_radian=True)
+        else:
+            self.arm = None
 
         self._robot_target_pose = None
         self._gripper_target_pos = None
@@ -314,7 +288,8 @@ class PikaxArm(Teleoperator, Thread):
 
         sleep_time = 1 / self.config.frequency
 
-        self.arm.set_linear_spd_limit_factor(2.0)
+        if self.arm:
+            self.arm.set_linear_spd_limit_factor(2.0)
 
         pika_to_robot_eef = [0, 0, 0, math.pi, -math.pi / 2, 0] # rpy
         # pika_to_robot_eef = [0, 0, 0, math.pi, 0, 0]
@@ -322,7 +297,7 @@ class PikaxArm(Teleoperator, Thread):
         # pika坐标系到机械臂坐标系的变换关系对应的变换矩阵
         pika_to_robot_matrix = self.xyzrpy_to_rotation_matrix(*pika_to_robot_eef)
         # 机械臂初始位置对应的变换矩阵
-        robot_base_matrix = None
+        robot_base_matrix = self.xyzrpy_to_rotation_matrix(*[0, 0, 190, -np.pi, -np.radians(41), 0])
         # pika初始位置转换到机械臂坐标系后对应的变换矩阵
         pika_begin_robot_matrix = None
         # pika目标位置转换到机械臂坐标系后对应的变换矩阵
@@ -332,6 +307,16 @@ class PikaxArm(Teleoperator, Thread):
 
         while not self.stop_event.is_set():
             time.sleep(sleep_time)
+
+            if not self.arm and pika_begin_robot_matrix is None:
+                pose = self.pika_sense.get_pose(self.pika_device.pika_tracker_device)
+                if not pose:
+                    continue
+                x, y, z = pose.position[0] * 1000 * scale_xyz, pose.position[1] * 1000 * scale_xyz, pose.position[2] * 1000 * scale_xyz
+                pika_begin_robot_matrix = self.pika_pose_to_robot_matrix(x, y, z, pose.rotation, pika_to_robot_matrix)
+                robot_target_pose = self.pika_robot_matrix_to_robot_pose(pika_begin_robot_matrix, pika_begin_robot_matrix, robot_base_matrix, is_axis_angle=True)
+                print('初始绑定, 当前Pika位置对应的机械臂目标位置: x={:.6f}, y={:.6f}, z={:.6f}, rx={:.6f}, ry={:.6f}, rz={:.6f}'.format(robot_target_pose[0], robot_target_pose[1], robot_target_pose[2], math.degrees(robot_target_pose[3]), math.degrees(robot_target_pose[4]), math.degrees(robot_target_pose[5])))
+                continue
 
             state = self.pika_sense.get_command_state()
             if state != curr_state:
@@ -347,7 +332,7 @@ class PikaxArm(Teleoperator, Thread):
                     print('停止遥操作')
                     continue
             
-            if self._ctrl_flag and (not self.arm.connected or self.arm.error_code != 0 or self.arm.state >= 4):
+            if self._ctrl_flag and self.arm and (not self.arm.connected or self.arm.error_code != 0 or self.arm.state >= 4):
                 print('机械臂原因, 遥操作自动停止')
                 init_state = state
                 curr_state = state
@@ -364,32 +349,40 @@ class PikaxArm(Teleoperator, Thread):
                     last_gripper_distance = distance
                     with self._data_lock:
                         self._gripper_target_pos = last_gripper_distance
-                    # self.set_gripper_position(distance)
 
             pose = self.pika_sense.get_pose(self.pika_device.pika_tracker_device)
             if not pose:
                 continue
             x, y, z = pose.position[0] * 1000 * scale_xyz, pose.position[1] * 1000 * scale_xyz, pose.position[2] * 1000 * scale_xyz
 
-            if self._need_initial:
-                self._need_initial = False
-                # _, robot_pos = self.arm.get_position()
-                _, robot_pos = self.arm.get_position(is_radian=True)
-                robot_base_pose = robot_pos
-                print('[初始] 机械臂位置: {}'.format(robot_pos))
-
-                # 机械臂初始位置对应的变换矩阵
-                robot_base_matrix = self.xyzrpy_to_rotation_matrix(*robot_pos)
-
-                # pika初始位置转换到机械臂坐标系后对应的变换矩阵
-                pika_begin_robot_matrix = self.pika_pose_to_robot_matrix(x, y, z, pose.rotation, pika_to_robot_matrix)
-                pika_end_robot_matrix = pika_begin_robot_matrix
-            else:
-                # pika目标位置转换到机械臂坐标系后对应的变换矩阵
+            if not self.arm:
+                # 只有PIKA设备, 没有机械臂
                 pika_end_robot_matrix = self.pika_pose_to_robot_matrix(x, y, z, pose.rotation, pika_to_robot_matrix)
+                robot_target_pose = self.pika_robot_matrix_to_robot_pose(pika_begin_robot_matrix, pika_end_robot_matrix, robot_base_matrix, is_axis_angle=True)
 
-            robot_target_pose = self.pika_robot_matrix_to_robot_pose(pika_begin_robot_matrix, pika_end_robot_matrix, robot_base_matrix, is_axis_angle=True)
-            # self.set_robot_position(robot_target_pose)
+                if self._need_initial:
+                    self._need_initial = False
+                    print('[初始位置] x={:.6f}, y={:.6f}, z={:.6f}, rx={:.6f}, ry={:.6f}, rz={:.6f}'.format(robot_target_pose[0], robot_target_pose[1], robot_target_pose[2], math.degrees(robot_target_pose[3]), math.degrees(robot_target_pose[4]), math.degrees(robot_target_pose[5])))
+            else:
+                if self._need_initial:
+                    self._need_initial = False
+                    # _, robot_pos = self.arm.get_position()
+                    _, robot_pos = self.arm.get_position(is_radian=True)
+                    robot_base_pose = robot_pos
+                    print('[初始] 机械臂位置: {}'.format(robot_pos))
+
+                    # 机械臂初始位置对应的变换矩阵
+                    robot_base_matrix = self.xyzrpy_to_rotation_matrix(*robot_pos)
+
+                    # pika初始位置转换到机械臂坐标系后对应的变换矩阵
+                    pika_begin_robot_matrix = self.pika_pose_to_robot_matrix(x, y, z, pose.rotation, pika_to_robot_matrix)
+                    pika_end_robot_matrix = pika_begin_robot_matrix
+                else:
+                    # pika目标位置转换到机械臂坐标系后对应的变换矩阵
+                    pika_end_robot_matrix = self.pika_pose_to_robot_matrix(x, y, z, pose.rotation, pika_to_robot_matrix)
+
+                robot_target_pose = self.pika_robot_matrix_to_robot_pose(pika_begin_robot_matrix, pika_end_robot_matrix, robot_base_matrix, is_axis_angle=True)
+
             with self._data_lock:
                 self._robot_target_pose = robot_target_pose
 
@@ -411,7 +404,10 @@ class PikaxArm(Teleoperator, Thread):
                 gripper_target_pos = 0.0
 
         if robot_target_pose is None:
-            _, robot_target_pose = self.arm.get_position_aa(is_radian=True)
+            if self.arm:
+                _, robot_target_pose = self.arm.get_position_aa(is_radian=True)
+            else:
+                robot_target_pose = [0, 0, 190, -np.pi, -np.radians(41), 0]
         # print(self._robot_target_pose, robot_target_pose)
 
         # output is delta change of the robot pose
@@ -423,9 +419,6 @@ class PikaxArm(Teleoperator, Thread):
             "pose.ry": robot_target_pose[4],
             "pose.rz": robot_target_pose[5],
         }
-
-        if self.config.rx_continuous and action_dict["pose.rx"] < 0:
-            action_dict["pose.rx"] += math.pi * 2
 
         if self.config.use_gripper:
             action_dict.update({"gripper.pos": gripper_target_pos})

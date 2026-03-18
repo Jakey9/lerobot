@@ -23,7 +23,7 @@ from lerobot.teleoperators import TeleoperatorConfig
 @dataclass
 class PikaxArmConfig(TeleoperatorConfig):
     # robot_ip to connect to the arm
-    robot_ip: str
+    robot_ip: str = None
     # Port to connect to the pika
     port: str = None
     frequency: int = 100 # hz

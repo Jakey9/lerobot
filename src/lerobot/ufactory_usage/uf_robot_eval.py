@@ -5,6 +5,7 @@ import logging
 import time
 import math
 import torch
+from pathlib import Path
 from dataclasses import asdict, dataclass
 from pprint import pformat
 from contextlib import nullcontext
@@ -54,6 +55,7 @@ class EvalConfig:
         policy_path = parser.get_path_arg("policy")
         if policy_path:
             cli_overrides = parser.get_cli_overrides("policy")
+            policy_path = Path(policy_path).expanduser()
             self.policy = PreTrainedConfig.from_pretrained(policy_path, cli_overrides=cli_overrides)
             self.policy.pretrained_path = policy_path
 

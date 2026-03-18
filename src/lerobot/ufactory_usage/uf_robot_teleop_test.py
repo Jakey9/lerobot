@@ -3,7 +3,7 @@ import argparse
 import importlib
 import logging
 import time
-import math
+from pathlib import Path
 from dataclasses import asdict, dataclass
 from pprint import pformat
 from lerobot.scripts.lerobot_record import register_third_party_plugins
@@ -61,16 +61,12 @@ def instantiate_from_dict(cfg):
 
 def eval(cfg: EvalConfig):
     init_logging()
-
-    if hasattr(cfg.robot, 'rx_continuous'):
-        cfg.robot.rx_continuous = False
-    if hasattr(cfg.teleop, 'rx_continuous'):
-        cfg.teleop.rx_continuous = False
-
     logging.info(pformat(asdict(cfg)))
 
-    robot = make_robot_from_config(cfg.robot)
     teleop = make_teleoperator_from_config(cfg.teleop)
+    if hasattr(cfg.robot, "teleop"):
+        cfg.robot.teleop = teleop
+    robot = make_robot_from_config(cfg.robot)
 
     teleop_action_processor, robot_action_processor, robot_observation_processor = make_default_processors()
 
@@ -127,7 +123,7 @@ def main():
                        help='configuration file path, e.g.my_config.yaml')
     args = parser.parse_args()
     try:
-        with open(args.config, 'r') as f:
+        with open(Path(args.config).expanduser(), 'r') as f:
             cfg = yaml.safe_load(f)
     except Exception as e:
         print(f"Error loading config yaml file: {e}")

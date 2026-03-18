@@ -1,6 +1,8 @@
 import yaml
 import argparse
 import importlib
+import math
+from pathlib import Path
 from lerobot.scripts.lerobot_record import *
 from lerobot.teleoperators import (
     gello_xarm,
@@ -37,8 +39,10 @@ def record(cfg: RecordConfig) -> LeRobotDataset:
     if cfg.display_data:
         init_rerun(session_name="recording")
 
-    robot = make_robot_from_config(cfg.robot)
     teleop = make_teleoperator_from_config(cfg.teleop) if cfg.teleop is not None else None
+    if hasattr(cfg.robot, "teleop"):
+        cfg.robot.teleop = teleop
+    robot = make_robot_from_config(cfg.robot)
 
     teleop_action_processor, robot_action_processor, robot_observation_processor = make_default_processors()
 
@@ -109,9 +113,21 @@ def record(cfg: RecordConfig) -> LeRobotDataset:
     print("\n********** Episode Record Loop Start **********")
 
     if isinstance(teleop, PikaxArm):
+        if getattr(cfg.robot, 'rx_continuous', False):
+            def frame_callback(frame):
+                if frame['action'][3] < 0:
+                    frame['action'][3] += 2 * math.pi
+                if frame['observation.state'][3] < 0:
+                    frame['observation.state'][3] += 2 * math.pi
+                return frame
+        else:
+            frame_callback = None
         input('\nPress Enter to record this episode >>>>> ')
-        time.sleep(1)
+        time.sleep(0.5)
         teleop.set_ctrl_status(True)
+        time.sleep(0.5)
+    else:
+        frame_callback = None
 
     with VideoEncodingManager(dataset):
         recorded_episodes = 0
@@ -144,6 +160,7 @@ def record(cfg: RecordConfig) -> LeRobotDataset:
                 control_time_s=cfg.dataset.episode_time_s,
                 single_task=cfg.dataset.single_task,
                 display_data=cfg.display_data,
+                frame_callback=frame_callback,
             )
 
             if events["rerecord_episode"]:
@@ -157,8 +174,9 @@ def record(cfg: RecordConfig) -> LeRobotDataset:
 
                 if isinstance(teleop, PikaxArm):
                     robot.configure()
-                    time.sleep(1)
+                    time.sleep(0.5)
                     teleop.set_ctrl_status(True)
+                    time.sleep(0.5)
                 continue
 
             if not events['stop_recording']:
@@ -198,7 +216,7 @@ def main():
                        help='Whether contitue recording on existing dataset (default: False)')
     args = parser.parse_args()
     try:
-        with open(args.config, 'r') as f:
+        with open(Path(args.config).expanduser(), 'r') as f:
             cfg = yaml.safe_load(f)
     except Exception as e:
         print(f"Error loading config yaml file: {e}")

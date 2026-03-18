@@ -153,16 +153,19 @@ python uf_robot_teleop_test.py --config config/xarm7_pika_record_config.yaml
 
 #### Recording with gello(teleoperation)
 ```bash
+# the default dataset is stored in lerobot_datas/record in the same directory as lerobot.
 python uf_robot_record.py --config config/xarm7_gello_record_config.yaml
 ```
 
 #### Recording with scripts(Randomly Generated Targets)
 ```bash
+# the default dataset is stored in lerobot_datas/record in the same directory as lerobot.
 python uf_robot_record.py --config config/xarm7_mock_record_config.yaml
 ```
 
 #### Recording with pika(teleoperation)
 ```bash
+# the default dataset is stored in lerobot_datas/record in the same directory as lerobot.
 python uf_robot_record.py --config config/xarm7_pika_record_config.yaml
 ```
 
@@ -170,15 +173,18 @@ python uf_robot_record.py --config config/xarm7_pika_record_config.yaml
 
 #### Resume gello-based recording
 ```bash
+# the default dataset is stored in lerobot_datas/record in the same directory as lerobot.
 python uf_robot_record.py --config config/xarm7_gello_record_config.yaml --resume
 ```
 #### Resume random target recording
 ```bash
+# the default dataset is stored in lerobot_datas/record in the same directory as lerobot.
 python uf_robot_record.py --config config/xarm7_mock_record_config.yaml --resume
 ```
 
 #### Resume pika-based recording
 ```bash
+# the default dataset is stored in lerobot_datas/record in the same directory as lerobot.
 python uf_robot_record.py --config config/xarm7_pika_record_config.yaml --resume
 ```
 
@@ -190,11 +196,12 @@ python uf_robot_record.py --config config/xarm7_pika_record_config.yaml --resume
 # repo_id must match the value used during data collection
 # policy.type is set to 'act'
 # steps = 800,000
-# Model checkpoints are saved every 20,000 steps
+# Model checkpoints are saved every 20,000 steps, and outputs the results to lerobot_datas/train in the same directory as lerobot.
 python -m lerobot.scripts.lerobot_train \
+  --dataset.root=../../../../lerobot_datas/record/ufactory/xarm7_record_datas \
   --dataset.repo_id=ufactory/xarm7_record_datas \
   --policy.type=act \
-  --output_dir=outputs/train/xarm7_record_datas \
+  --output_dir=../../../../lerobot_datas/train/xarm7_record_datas \
   --job_name=xarm7_record_datas \
   --policy.device=cuda \
   --policy.repo_id=ufactory/xarm7_record_datas \
@@ -204,9 +211,10 @@ python -m lerobot.scripts.lerobot_train \
 ### 5.2 Resume Training
 ```bash
 python -m lerobot.scripts.lerobot_train \
+  --dataset.root=../../../../lerobot_datas/record/ufactory/xarm7_record_datas \
   --dataset.repo_id=ufactory/xarm7_record_datas \
   --policy.type=act \
-  --output_dir=outputs/train/xarm7_record_datas \
+  --output_dir=../../../../lerobot_datas/train/xarm7_record_datas \
   --job_name=xarm7_record_datas \
   --policy.device=cuda \
   --policy.repo_id=ufactory/xarm7_record_datas \
@@ -223,7 +231,7 @@ python -m lerobot.scripts.lerobot_train \
 ```bash
 python uf_robot_eval.py \
   --config config/xarm7_gello_record_config.yaml \
-  --policy.path=outputs/train/xarm7_record_datas/checkpoints/last/pretrained_model/
+  --policy.path=../../../../lerobot_datas/train/xarm7_record_datas/checkpoints/last/pretrained_model/
 ```
 
 ## 7. Dataset Utilities

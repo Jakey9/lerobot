@@ -37,6 +37,7 @@ class UFRobotConfig(RobotConfig):
     gripper_port: str = None   # only used by pika gripper (gripper_type=10)
     observe_joint_vel: bool = False # only effective in joint control mode
     start_joints: Tuple[float, ...] = (0, 0, 0, np.pi/2, 0, np.pi/2, 0)
+    start_tcp_pose: Tuple[float, ...] = None # xyzrpy
     max_joint_velocity: int = 90   # °/s, only effective in joint control mode
     max_linear_velocity: int = 200 # mm/s, only effective in cartesian control mode
     rx_continuous: bool = False

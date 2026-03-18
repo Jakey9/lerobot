@@ -150,32 +150,38 @@ python python uf_robot_teleop_test.py --config config/xarm7_pika_record_config.y
 
 #### 使用gello采集(遥操)
 ```bash
+# 由于配置文件指定了root参数, 默认数据集存放在和lerobot同级目录下的lerobot_datas/record里面
 python uf_robot_record.py --config config/xarm7_gello_record_config.yaml
 ```
 
 #### 使用程序生成随机目标点后, 程序自动生成数据来采集
 ```bash
+# 由于配置文件指定了root参数, 默认数据集存放在和lerobot同级目录下的lerobot_datas/record里面
 python uf_robot_record.py --config config/xarm7_mock_record_config.yaml
 ```
 
 #### 使用pika采集(遥操)
 ```bash
+# 由于配置文件指定了root参数, 默认数据集存放在和lerobot同级目录下的lerobot_datas/record里面
 python uf_robot_record.py --config config/xarm7_pika_record_config.yaml
 ```
 
 ### 4.3 恢复采集
 #### gello恢复采集
 ```bash
+# 由于配置文件指定了root参数, 默认数据集存放在和lerobot同级目录下的lerobot_datas/record里面
 python uf_robot_record.py --config config/xarm7_gello_record_config.yaml --resume
 ```
 
 #### 程序生成点恢复采集
 ```bash
+# 由于配置文件指定了root参数, 默认数据集存放在和lerobot同级目录下的lerobot_datas/record里面
 python uf_robot_record.py --config config/xarm7_mock_record_config.yaml --resume
 ```
 
 #### pika恢复采集
 ```bash
+# 由于配置文件指定了root参数, 默认数据集存放在和lerobot同级目录下的lerobot_datas/record里面
 python uf_robot_record.py --config config/xarm7_pika_record_config.yaml --resume
 ```
     
@@ -186,13 +192,14 @@ python uf_robot_record.py --config config/xarm7_pika_record_config.yaml --resume
 ```bash
 # 注意: repo_id就是采集时配置文件里面的repo_id
 # 这里训练策略policy.type选用act，训练次数steps为80万次
-# 训练过程每2万次保存一次结果，结果输出到output_dir对应目录中
+# 训练过程每2万次保存一次结果，结果输出到和lerobot同级目录下的lerobot_datas/train里面
 python -m lerobot.scripts.lerobot_train \
+  --dataset.root=../../../../lerobot_datas/record/ufactory/xarm7_record_datas \
   --dataset.repo_id=ufactory/xarm7_record_datas \
   --policy.type=act \
   --policy.device=cuda \
   --policy.repo_id=ufactory/xarm7_record_datas \
-  --output_dir=outputs/train/xarm7_record_datas \
+  --output_dir=../../../../lerobot_datas/train/xarm7_record_datas \
   --job_name=xarm7_record_datas \
   --steps=800000
 ```
@@ -200,17 +207,18 @@ python -m lerobot.scripts.lerobot_train \
 ### 5.2 恢复训练
 ```bash
 python -m lerobot.scripts.lerobot_train \
+  --dataset.root=../../../../lerobot_datas/record/ufactory/xarm7_record_datas \
   --dataset.repo_id=ufactory/xarm7_record_datas \
   --policy.type=act \
   --policy.device=cuda \
   --policy.repo_id=ufactory/xarm7_record_datas \
-  --output_dir=outputs/train/xarm7_record_datas \
+  --output_dir=../../../../lerobot_datas/train/xarm7_record_datas \
   --job_name=xarm7_record_datas \
   --steps=800000 \
   --batch_size=8 \
   --save_freq=20000 \
   --resume=true \
-  --config_path=outputs/train/xarm7_record_datas/checkpoints/last/pretrained_model/train_config.json
+  --config_path=../../../../lerobot_datas/train/xarm7_record_datas/checkpoints/last/pretrained_model/train_config.json
 ```
 
 ## 6. 推理
@@ -219,7 +227,7 @@ python -m lerobot.scripts.lerobot_train \
 ```bash
 python uf_robot_eval.py \
   --config config/xarm7_gello_record_config.yaml \
-  --policy.path=outputs/train/xarm7_record_datas/checkpoints/last/pretrained_model/
+  --policy.path=../../../../lerobot_datas/train/xarm7_record_datas/checkpoints/last/pretrained_model/
 ```
 
 ## 7. 数据集工具

@@ -59,6 +59,9 @@ class UFRobot(Robot, Thread):
         self._max_joint_velocity = math.radians(self.config.max_joint_velocity)
         self._max_linear_velocity = self.config.max_linear_velocity
 
+        self._start_tcp_pose = self.config.start_tcp_pose
+        self._start_joints = self.config.start_joints
+
         self.report_stop_event = Event()
         self._rt_report_normal = False
         self._update_lock = Lock()
@@ -152,7 +155,13 @@ class UFRobot(Robot, Thread):
         self.real_arm.set_mode(0)  # set to idle mode
         self.real_arm.set_state(0)  # set to start state
         time.sleep(0.5)
-        self.real_arm.set_servo_angle(angle=self.config.start_joints, is_radian=True, wait=True)
+        if self._start_tcp_pose is None:
+            self.real_arm.set_servo_angle(angle=self._start_joints, is_radian=True, wait=True)
+        else:
+            self.real_arm.set_servo_angle(angle=self._start_joints, is_radian=True, wait=True)
+            self.real_arm.set_position(*self._start_tcp_pose, speed=100, is_radian=True, wait=True)
+            _, self._start_joints = self.real_arm.get_servo_angle(is_radian=True)
+            self._start_tcp_pose = None
 
         if self._control_space == "joint":
             self.real_arm.set_mode(6) 
@@ -174,6 +183,7 @@ class UFRobot(Robot, Thread):
                 self.real_arm.set_gripper_position(800)
             elif self._gripper_type == 10:
                 self.pika_gripper.enable()
+                time.sleep(0.5)
                 self.pika_gripper.set_gripper_distance(100)
             if not self._get_arm_err() == 0:
                 raise RuntimeError(f"Failed to set correct state to Gripper! Controller Error code: {self._get_arm_err()} !")
@@ -222,8 +232,6 @@ class UFRobot(Robot, Thread):
                 # jvel_fbk_list = self.rt_actual_joint_speed.copy()
 
             obs_dict = {"pose.x": pos_list[0],"pose.y": pos_list[1],"pose.z": pos_list[2],"pose.rx": pos_list[3],"pose.ry": pos_list[4],"pose.rz": pos_list[5]}
-            if self.config.rx_continuous and obs_dict["pose.rx"] < 0:
-                obs_dict["pose.rx"] += math.pi * 2
             if self._cart_obs_has_vel:
                 obs_dict.update({"velo.x": vel_list[0], "velo.y": vel_list[1], "velo.z": vel_list[2], "velo.rx": vel_list[3], "velo.ry": vel_list[4], "velo.rz": vel_list[5]})
         else:
