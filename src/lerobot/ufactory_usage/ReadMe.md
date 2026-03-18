@@ -240,6 +240,7 @@ python uf_robot_eval.py \
 Example: view episode index **17**
 ```bash
 lerobot-dataset-viz \
+  --root=../../../../lerobot_datas/record/ufactory/xarm7_record_datas \
   --repo-id ufactory/xarm7_record_datas \
   --display-compressed-images true \
   --episode-index 17
@@ -249,7 +250,9 @@ lerobot-dataset-viz \
 Example: delete episodes **18** and **19**
 ```bash
 lerobot-edit-dataset \
+  --root=../../../../lerobot_datas/record/ufactory/xarm7_record_datas \
   --repo_id ufactory/xarm7_record_datas \
+  --new_repo_id ../xarm7_record_datas_new \
   --operation.type delete_episodes \
   --operation.episode_indices "[18, 19]"
 ```
