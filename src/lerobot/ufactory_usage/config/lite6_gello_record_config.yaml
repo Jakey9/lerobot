@@ -1,0 +1,29 @@
+RobotConfig:
+  _target_: lerobot.robots.ufactory_robot.UFRobotConfig
+  id: "lite6"
+  robot_ip: "192.168.1.85"
+  robot_dof: 6
+  control_space: "joint"
+  gripper_control: True
+  start_joints: [0, 0, 0, 0, 0, 0]
+
+DatasetRecordConfig:
+  _target_: lerobot.scripts.lerobot_record.DatasetRecordConfig
+  root: "../../../../lerobot_datas/record/ufactory/lite6_record_datas"
+  repo_id: "ufactory/lite6_record_datas"
+  single_task: "Pick up the object and place it in the target location."
+  fps: 30
+  episode_time_s: 60
+  reset_time_s: 20
+  push_to_hub: False
+
+# Update port and calibration values after running:
+#   python scripts/zhonglin_get_offset.py --port /dev/ttyUSB0 --start-joints 0 0 0 0 0 0
+TeleoperatorConfig:
+  _target_: lerobot.teleoperators.gello_lite6.GelloLite6Config
+  port: "/dev/ttyUSB0"
+  baudrate: 115200
+  joint_ids: [0, 1, 2, 3, 4, 5]
+  joint_signs: [1, 1, 1, 1, 1, 1]
+  start_joints: [0, 0, 0, 0, 0, 0]
+  gripper_id: 6

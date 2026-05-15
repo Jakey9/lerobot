@@ -6,6 +6,7 @@ from pathlib import Path
 from lerobot.scripts.lerobot_record import *
 from lerobot.teleoperators import (
     gello_xarm,
+    gello_lite6,
     space_mouse,
     ufactory_mock
 )

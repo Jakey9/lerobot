@@ -85,6 +85,10 @@ def make_teleoperator_from_config(config: TeleoperatorConfig) -> Teleoperator:
         from .gello_xarm import GelloxArm
 
         return GelloxArm(config)
+    elif config.type == "gello_lite6":
+        from .gello_lite6 import GelloLite6
+
+        return GelloLite6(config)
     elif config.type == "pika_xarm":
         from .pika_xarm import PikaxArm
 

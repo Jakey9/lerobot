@@ -21,6 +21,7 @@ from lerobot.teleoperators import (  # noqa: F401
     TeleoperatorConfig,
     make_teleoperator_from_config,
     gello_xarm,
+    gello_lite6,
     space_mouse,
     ufactory_mock,
     pika_xarm
