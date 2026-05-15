@@ -75,6 +75,9 @@ class UFRobot(Robot, Thread):
             self.pika_gripper = self.pika_device.pika_gripper
             logger = logging.getLogger('pika.gripper')
             logger.setLevel(logging.WARNING)
+        elif self._gripper_type == 20:
+            self._modbus_gripper_open = self.config.modbus_gripper_open
+            self._modbus_gripper_close = self.config.modbus_gripper_close
 
     @property
     def _robot_state_features(self)-> dict:
@@ -142,6 +145,14 @@ class UFRobot(Robot, Thread):
             if not self.pika_gripper.connect():
                 print('Could not connect to pika gripper.')
                 raise ConnectionError()
+        elif self._gripper_type == 20:
+            code = self.real_arm.set_tgpio_modbus_baudrate(self.config.modbus_gripper_baudrate)
+            if code != 0:
+                print(f'Failed to set Modbus baudrate, code={code}')
+            self.real_arm.set_tgpio_modbus_timeout(50)
+            self.real_arm.set_tgpio_digital(0, 1)
+            self.real_arm.set_tgpio_digital(1, 1)
+            time.sleep(0.5)
 
         self.configure()
         if calibrate:  
@@ -185,6 +196,8 @@ class UFRobot(Robot, Thread):
                 self.pika_gripper.enable()
                 time.sleep(0.5)
                 self.pika_gripper.set_gripper_distance(100)
+            elif self._gripper_type == 20:
+                self._modbus_gripper_write(self._modbus_gripper_open)
             if not self._get_arm_err() == 0:
                 raise RuntimeError(f"Failed to set correct state to Gripper! Controller Error code: {self._get_arm_err()} !")
         
@@ -206,6 +219,21 @@ class UFRobot(Robot, Thread):
         arm_err_warn = self.real_arm.get_err_warn_code()[1]
         # print(f"_get_arm_err() = {arm_err_warn}")
         return arm_err_warn[0]
+
+    def _modbus_gripper_write(self, pos: int) -> None:
+        """Write a goal position to the OpenParallelGripper via Modbus RTU (register 0x0080)."""
+        hi = (pos >> 8) & 0xFF
+        lo = pos & 0xFF
+        data = [0x01, 0x06, 0x00, 0x80, hi, lo]
+        self.real_arm.getset_tgpio_modbus_data(data)
+
+    def _modbus_gripper_read(self) -> int:
+        """Read the current position from the OpenParallelGripper via Modbus RTU (register 0x0101)."""
+        cmd = [0x01, 0x03, 0x01, 0x01, 0x00, 0x01]
+        code, resp = self.real_arm.getset_tgpio_modbus_data(cmd)
+        if code != 0 or resp is None or len(resp) < 5:
+            return self._modbus_gripper_open
+        return (resp[3] << 8) | resp[4]
 
     def get_observation(self) -> dict[str, np.ndarray]:
         obs_dict = {}
@@ -238,16 +266,18 @@ class UFRobot(Robot, Thread):
             ValueError(f"Please check the given control space of uf_robot! got {self._control_space}")
         
         if self._gripper_type > 0:
-            # TODO: Add gripper pose
             if self._gripper_type == 10:
                 grippos = self.pika_gripper.get_gripper_distance()
+            elif self._gripper_type == 20:
+                grippos = self._modbus_gripper_read()
             else:
                 code, grippos = self.real_arm.get_gripper_position()
 
             self.logs["read_pos_dt_s"] = time.perf_counter() - before_read_t
-            # states[1] as joint velo
             if self._gripper_type == 10:
                 grippos_norm = ( 100 - grippos ) / (100 - 0)
+            elif self._gripper_type == 20:
+                grippos_norm = ( self._modbus_gripper_open - grippos ) / (self._modbus_gripper_open - self._modbus_gripper_close)
             else:
                 grippos_norm = ( self.GRIPPER_OPEN - grippos ) / (self.GRIPPER_OPEN - self.GRIPPER_CLOSE)
             obs_dict["gripper.pos"] = grippos_norm
@@ -292,30 +322,36 @@ class UFRobot(Robot, Thread):
             if self._gripper_type > 0:
                 if self._gripper_type == 10:
                     gripper_command = 100 + cmd_list[self._dof] * (0 - 100)
+                elif self._gripper_type == 20:
+                    gripper_command = self._modbus_gripper_open + cmd_list[self._dof] * (self._modbus_gripper_close - self._modbus_gripper_open)
                 else:
                     gripper_command = self.GRIPPER_OPEN + cmd_list[self._dof] * (self.GRIPPER_CLOSE - self.GRIPPER_OPEN)
-        elif self._control_space == "cartesian": # unit: mm? 
+        elif self._control_space == "cartesian":
             lin_spd = self._max_linear_velocity
             
             if not self._rt_report_normal:
                 raise ConnectionError("RT Report for target robot NOT READY! ")
             cmd_list = [action["pose.x"], action["pose.y"], action["pose.z"], action["pose.rx"], action["pose.ry"], action["pose.rz"]]
             self.real_arm.set_position_aa(axis_angle_pose=cmd_list, speed=lin_spd, is_radian=True, wait=False)
-            # self.real_arm.set_position(*cmd_list, radius=0, speed=lin_spd, is_radian=True, wait=False)
             if self._gripper_type > 0:
                 if self._gripper_type == 10:
                     gripper_command = 100 + action["gripper.pos"] * (0 - 100)
+                elif self._gripper_type == 20:
+                    gripper_command = self._modbus_gripper_open + action["gripper.pos"] * (self._modbus_gripper_close - self._modbus_gripper_open)
                 else:
                     gripper_command = self.GRIPPER_OPEN + action["gripper.pos"] * (self.GRIPPER_CLOSE - self.GRIPPER_OPEN)
 
         if self._cmd_cnt < 99999:
-            self._cmd_cnt += 1 # CHECK!! possibility of overflow?
+            self._cmd_cnt += 1
         if self._gripper_type > 0:
             if self._gripper_type == 10:
                 gripper_command = min(max(gripper_command, 0), 100)
                 self.pika_gripper.set_gripper_distance(gripper_command)
+            elif self._gripper_type == 20:
+                gripper_command = int(min(max(gripper_command, self._modbus_gripper_close), self._modbus_gripper_open))
+                self._modbus_gripper_write(gripper_command)
             else:
-                self.real_arm.set_gripper_position(gripper_command, wait=False) # CHECK! the command unit
+                self.real_arm.set_gripper_position(gripper_command, wait=False)
         self.logs["write_pos_dt_s"] = time.perf_counter() - before_write_t
         return action
 

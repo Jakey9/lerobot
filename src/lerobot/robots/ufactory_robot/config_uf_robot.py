@@ -33,8 +33,11 @@ class UFRobotConfig(RobotConfig):
     robot_dof: int | None = None  # Set it correctly if controlling in joint space!
     control_space: str = "joint"
     gripper_control: bool = True
-    gripper_type: int = 1           # 1: xArm Gripper, 10: Pika Gripper
+    gripper_type: int = 1           # 1: xArm Gripper, 10: Pika Gripper, 20: OpenParallelGripper (Modbus RTU)
     gripper_port: str = None   # only used by pika gripper (gripper_type=10)
+    modbus_gripper_baudrate: int = 115200  # only used by OpenParallelGripper (gripper_type=20)
+    modbus_gripper_open: int = 250         # servo position for fully open (gripper_type=20)
+    modbus_gripper_close: int = 0          # servo position for fully closed (gripper_type=20)
     observe_joint_vel: bool = False # only effective in joint control mode
     start_joints: Tuple[float, ...] = (0, 0, 0, np.pi/2, 0, np.pi/2, 0)
     start_tcp_pose: Tuple[float, ...] = None # xyzrpy
