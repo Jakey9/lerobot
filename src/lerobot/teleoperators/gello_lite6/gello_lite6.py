@@ -67,11 +67,17 @@ class GelloLite6(Teleoperator):
 
     @property
     def action_features(self) -> dict:
-        return {f"J{i+1}.pos": float for i in range(self.dof)} | {"gripper.pos": float}
+        ft = {f"J{i+1}.pos": float for i in range(self.dof)}
+        if self.config.gripper_id >= 0:
+            ft["gripper.pos"] = float
+        return ft
 
     @property
     def feedback_features(self) -> dict:
-        return {f"J{i+1}.pos": float for i in range(self.dof)} | {"gripper.pos": float}
+        ft = {f"J{i+1}.pos": float for i in range(self.dof)}
+        if self.config.gripper_id >= 0:
+            ft["gripper.pos"] = float
+        return ft
 
     @property
     def is_connected(self) -> bool:
@@ -107,7 +113,9 @@ class GelloLite6(Teleoperator):
 
     def get_action(self) -> dict[str, float]:
         start = time.perf_counter()
-        fake_obs = {"joint_state": np.zeros(self.dof + 1)}
+        has_gripper = self.config.gripper_id >= 0
+        obs_size = self.dof + (1 if has_gripper else 0)
+        fake_obs = {"joint_state": np.zeros(obs_size)}
         action_array = self.gello_agent.act(fake_obs)
         dt_ms = (time.perf_counter() - start) * 1e3
         logger.debug(f"{self} read action: {dt_ms:.1f}ms")
@@ -115,7 +123,8 @@ class GelloLite6(Teleoperator):
         action = {}
         for i in range(self.dof):
             action[f"J{i+1}.pos"] = action_array[i]
-        action["gripper.pos"] = action_array[self.dof]
+        if has_gripper:
+            action["gripper.pos"] = action_array[self.dof]
         return action
 
     def send_feedback(self, feedback: dict[str, float]) -> None:

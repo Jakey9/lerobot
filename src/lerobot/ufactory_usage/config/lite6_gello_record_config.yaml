@@ -4,11 +4,11 @@ RobotConfig:
   robot_ip: "192.168.1.85"
   robot_dof: 6
   control_space: "joint"
-  gripper_control: True
-  gripper_type: 20  # OpenParallelGripper via Modbus RTU
-  modbus_gripper_baudrate: 115200
-  modbus_gripper_open: 250
-  modbus_gripper_close: 0
+  gripper_control: False
+  # gripper_type: 20  # OpenParallelGripper via Modbus RTU (uncomment when gripper is ready)
+  # modbus_gripper_baudrate: 115200
+  # modbus_gripper_open: 250
+  # modbus_gripper_close: 0
   start_joints: [0, 0, 0, 0, 0, 0]
 
 DatasetRecordConfig:
@@ -30,4 +30,4 @@ TeleoperatorConfig:
   joint_ids: [0, 1, 2, 3, 4, 5]
   joint_signs: [1, 1, 1, 1, 1, 1]
   start_joints: [0, 0, 0, 0, 0, 0]
-  gripper_id: 6
+  gripper_id: -1  # set to 6 when gripper is ready
