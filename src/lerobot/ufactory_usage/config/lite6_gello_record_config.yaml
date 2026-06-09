@@ -10,6 +10,19 @@ RobotConfig:
   # modbus_gripper_open: 250
   # modbus_gripper_close: 0
   start_joints: [0, 0, 0, 0, 0, 0]
+  cameras:
+    overhead:
+      _target_: lerobot.cameras.realsense.configuration_realsense.RealSenseCameraConfig
+      serial_number_or_name: "Intel RealSense D455"
+      fps: 30
+      width: 640
+      height: 480
+    # wrist:  # mount a second camera on the end-effector
+    #   _target_: lerobot.cameras.realsense.configuration_realsense.RealSenseCameraConfig
+    #   serial_number_or_name: "YOUR_WRIST_CAM_SERIAL"  # run: rs-enumerate-devices | grep "Serial Number"
+    #   fps: 30
+    #   width: 640
+    #   height: 480
 
 DatasetRecordConfig:
   _target_: lerobot.scripts.lerobot_record.DatasetRecordConfig
