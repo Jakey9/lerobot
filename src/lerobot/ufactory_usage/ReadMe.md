@@ -234,7 +234,128 @@ python uf_robot_eval.py \
   --policy.path=../../../../lerobot_datas/train/xarm7_record_datas/checkpoints/last/pretrained_model/
 ```
 
-## 7. Dataset Utilities
+## 7. Lite6 + Gello (Zhonglin Servo) Guide
+
+This section covers using a **UFACTORY Lite6** robot arm with a custom **GELLO** teleoperator built with **Zhonglin serial bus servos** (not Dynamixel).
+
+### 7.1 Hardware Requirements
+
+- **Robot Arm**: [UFACTORY Lite6](https://www.ufactory.cc/lite6-collaborative-robot/)
+- **Teleoperator**: Custom GELLO with Zhonglin serial bus servos (6-DOF, optional gripper on servo ID 6)
+- **Camera**: Intel RealSense D435/D435i/D455
+- **Connection**: Zhonglin servos via USB-to-serial adapter (`/dev/ttyUSB0`)
+
+### 7.2 Software Setup (Forked gello_software)
+
+The default `requirements_extra.txt` installs the upstream gello_software, which only supports Dynamixel motors. For Zhonglin servos, install the **forked version** instead:
+
+```bash
+# Do NOT run: pip install -r requirements_extra.txt (it pulls the wrong gello repo)
+
+# Install the forked gello_software with Zhonglin driver support
+cd /path/to/your/gello_software
+pip install -e .
+
+# Install DynamixelSDK (still needed as a dependency)
+pip install -e third_party/DynamixelSDK/python
+```
+
+Verify the install provides these modules:
+- `gello.zhonglin.driver` (`ZhonglinDriver`)
+- `gello.agents.gello_agent` (`GelloAgent`, `ZhonglinRobotConfig`)
+
+### 7.3 Configuration
+
+Edit `config/lite6_gello_record_config.yaml`:
+
+```yaml
+RobotConfig:
+  _target_: lerobot.robots.ufactory_robot.UFRobotConfig
+  id: "lite6"
+  robot_ip: "192.168.1.85"       # Your lite6 IP
+  robot_dof: 6
+  control_space: "joint"
+  gripper_control: False
+  start_joints: [0, 0, 0, 0, 0, 0]
+  cameras:
+    overhead:
+      _target_: lerobot.cameras.realsense.configuration_realsense.RealSenseCameraConfig
+      serial_number_or_name: "Intel RealSense D455"
+      fps: 30
+      width: 640
+      height: 480
+
+TeleoperatorConfig:
+  _target_: lerobot.teleoperators.gello_lite6.GelloLite6Config
+  port: "/dev/ttyUSB0"           # Serial port for Zhonglin servos
+  baudrate: 115200
+  joint_ids: [0, 1, 2, 3, 4, 5]
+  joint_signs: [1, 1, 1, 1, 1, 1]
+  start_joints: [0, 0, 0, 0, 0, 0]  # Robot pose that gello matches at startup
+  gripper_id: -1                 # Set to 6 when gripper servo is connected
+```
+
+### 7.4 Calibration
+
+Offset calibration is **automatic** — computed each time the script starts. The procedure:
+
+1. Command the Lite6 to its home position (all joints at 0 radians)
+2. Physically move the GELLO so its joints mirror the robot's home pose
+3. Ensure `start_joints` in the YAML matches the robot's current pose (e.g. `[0, 0, 0, 0, 0, 0]`)
+4. Run the script — offsets are calculated as: `offset[i] = raw_servo[i] - start_joints[i] / joint_signs[i]`
+
+To verify offsets before running the full pipeline:
+```bash
+cd /path/to/your/gello_software
+python scripts/zhonglin_get_offset.py --port /dev/ttyUSB0 --start-joints 0 0 0 0 0 0
+```
+
+### 7.5 Teleoperation Test
+
+```bash
+python uf_robot_teleop_test.py --config config/lite6_gello_record_config.yaml
+```
+
+- Press **Enter** to begin teleoperation
+- Press **ESC** to exit
+
+### 7.6 Data Recording
+
+```bash
+python uf_robot_record.py --config config/lite6_gello_record_config.yaml
+```
+
+Keyboard controls during recording:
+- `→` : Finish current episode, save, and reset for next episode
+- `←` : Discard current episode, reset, and re-record
+- `Esc` : Stop recording and exit
+- `Enter` : Continue
+
+### 7.7 Training (Lite6)
+
+```bash
+python -m lerobot.scripts.lerobot_train \
+  --dataset.root=../../../../lerobot_datas/record/ufactory/lite6_record_datas \
+  --dataset.repo_id=ufactory/lite6_record_datas \
+  --policy.type=act \
+  --output_dir=../../../../lerobot_datas/train/lite6_record_datas \
+  --job_name=lite6_record_datas \
+  --policy.device=cuda \
+  --policy.repo_id=ufactory/lite6_record_datas \
+  --steps=800000
+```
+
+### 7.8 Inference & Evaluation (Lite6)
+
+```bash
+python uf_robot_eval.py \
+  --config config/lite6_gello_record_config.yaml \
+  --policy.path=../../../../lerobot_datas/train/lite6_record_datas/checkpoints/last/pretrained_model/
+```
+
+---
+
+## 8. Dataset Utilities
 
 ### Playback an Episode
 Example: view episode index **17**
@@ -267,14 +388,14 @@ lerobot-edit-dataset \
 ```
 
 
-## 8. Important Notes
+## 9. Important Notes
 Users are expected to thoroughly study the codebase and configuration parameters.  
 The provided configurations are **not guaranteed to work for all scenarios** and must be adjusted based on actual hardware setups and task requirements.
 
 In particular, for **diffusion policies**, the default parameters in LeRobot are primarily designed for simulation and **are not optimized for real-world robots**.
 
 
-## 9. Dataset Examples (Reference Only)
+## 10. Dataset Examples (Reference Only)
 [Test datasets](https://drive.google.com/drive/folders/1Ms25rd2YYGdh3tHPEsTTMU-m1fE7uNYY?usp=sharing) used during development (not reusable):
 - **xarm7_act_20260119**: 60 successful single-attempt grasps recorded via gello
 - **xarm7_act_20260127**: 80 samples (added 20 failure-and-retry cases)
